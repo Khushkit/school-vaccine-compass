@@ -1,288 +1,208 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { mockStudents, mockVaccinationDrives, Student, VaccinationDrive } from '../lib/mockData';
-import { format, addDays } from 'date-fns';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
+import { Student, VaccinationDrive, Vaccination } from '@/lib/mockData';
+import { mockStudents, mockVaccinationDrives } from '@/lib/mockData';
 
 interface DataContextType {
   students: Student[];
   vaccinationDrives: VaccinationDrive[];
   addStudent: (student: Omit<Student, 'id' | 'vaccinations'>) => void;
-  updateStudent: (student: Student) => void;
-  addVaccinationDrive: (drive: Omit<VaccinationDrive, 'id' | 'usedDoses' | 'status'>) => boolean;
-  updateVaccinationDrive: (drive: VaccinationDrive) => boolean;
+  updateStudent: (student: Student) => boolean;
+  deleteStudent: (id: string) => void;
   getStudentById: (id: string) => Student | undefined;
+  addVaccinationDrive: (drive: Omit<VaccinationDrive, 'id' | 'usedDoses' | 'status'>) => void;
+  updateVaccinationDrive: (drive: VaccinationDrive) => boolean;
+  cancelVaccinationDrive: (id: string) => void;
+  completeVaccinationDrive: (id: string) => void;
   getDriveById: (id: string) => VaccinationDrive | undefined;
-  markStudentVaccinated: (studentId: string, driveId: string) => boolean;
-  importStudents: (students: Omit<Student, 'id' | 'vaccinations'>[]) => void;
   getDriveVaccinatedStudents: (driveId: string) => Student[];
-  getUpcomingDrives: () => VaccinationDrive[];
-  getVaccinationStats: () => { total: number, vaccinated: number, percentage: number };
+  markStudentVaccinated: (studentId: string, driveId: string) => boolean;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-export const DataProvider: React.FC<{children: ReactNode}> = ({ children }) => {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [vaccinationDrives, setVaccinationDrives] = useState<VaccinationDrive[]>([]);
+interface DataProviderProps {
+  children: React.ReactNode;
+}
 
-  // Load mock data on initial render
-  useEffect(() => {
-    // Load data from localStorage if available
+export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
+  const [students, setStudents] = useState<Student[]>(() => {
     const storedStudents = localStorage.getItem('students');
+    return storedStudents ? JSON.parse(storedStudents) : mockStudents;
+  });
+  const [vaccinationDrives, setVaccinationDrives] = useState<VaccinationDrive[]>(() => {
     const storedDrives = localStorage.getItem('vaccinationDrives');
-    
-    if (storedStudents && storedDrives) {
-      setStudents(JSON.parse(storedStudents));
-      setVaccinationDrives(JSON.parse(storedDrives));
-    } else {
-      // Otherwise use mock data
-      setStudents(mockStudents);
-      setVaccinationDrives(mockVaccinationDrives);
-
-      // And store it for next time
-      localStorage.setItem('students', JSON.stringify(mockStudents));
-      localStorage.setItem('vaccinationDrives', JSON.stringify(mockVaccinationDrives));
-    }
-  }, []);
-
-  // Update localStorage whenever data changes
-  useEffect(() => {
-    if (students.length > 0) {
-      localStorage.setItem('students', JSON.stringify(students));
-    }
-    
-    if (vaccinationDrives.length > 0) {
-      localStorage.setItem('vaccinationDrives', JSON.stringify(vaccinationDrives));
-    }
+    return storedDrives ? JSON.parse(storedDrives) : mockVaccinationDrives;
+  });
+  
+  // Function to update local storage
+  const updateLocalStorage = useCallback(() => {
+    localStorage.setItem('students', JSON.stringify(students));
+    localStorage.setItem('vaccinationDrives', JSON.stringify(vaccinationDrives));
   }, [students, vaccinationDrives]);
+
+  useEffect(() => {
+    updateLocalStorage();
+  }, [students, vaccinationDrives, updateLocalStorage]);
 
   const addStudent = (student: Omit<Student, 'id' | 'vaccinations'>) => {
     const newStudent: Student = {
+      id: Math.random().toString(36).substring(2, 15),
       ...student,
-      id: (students.length + 1).toString(),
-      vaccinations: []
+      vaccinations: [],
     };
-    
-    setStudents(prev => [...prev, newStudent]);
-    toast.success(`Student ${student.name} added successfully`);
+    setStudents((prev) => [...prev, newStudent]);
+    toast.success(`${student.name} added successfully!`);
   };
-
-  const updateStudent = (updatedStudent: Student) => {
-    setStudents(prev => 
-      prev.map(student => student.id === updatedStudent.id ? updatedStudent : student)
+  
+  const updateStudent = (student: Student): boolean => {
+    setStudents(prev =>
+      prev.map(s => (s.id === student.id ? student : s))
     );
-    toast.success(`Student ${updatedStudent.name} updated successfully`);
-  };
-
-  const addVaccinationDrive = (drive: Omit<VaccinationDrive, 'id' | 'usedDoses' | 'status'>): boolean => {
-    // Convert date string to Date object for validation
-    const driveDate = new Date(drive.date);
-    const today = new Date();
-    const minDate = addDays(today, 15); // 15 days from now
-    
-    // Check if drive date is at least 15 days in the future
-    if (driveDate < minDate) {
-      toast.error('Vaccination drive must be scheduled at least 15 days in advance');
-      return false;
-    }
-    
-    // Check for overlapping drives on the same date
-    const sameDateDrives = vaccinationDrives.filter(existingDrive => 
-      existingDrive.date === drive.date
-    );
-    
-    if (sameDateDrives.length > 0) {
-      toast.error('A vaccination drive is already scheduled for this date');
-      return false;
-    }
-    
-    const newDrive: VaccinationDrive = {
-      ...drive,
-      id: (vaccinationDrives.length + 1).toString(),
-      usedDoses: 0,
-      status: 'scheduled'
-    };
-    
-    setVaccinationDrives(prev => [...prev, newDrive]);
-    toast.success(`Vaccination drive "${drive.name}" scheduled successfully`);
+    toast.success(`${student.name} updated successfully!`);
     return true;
   };
 
-  const updateVaccinationDrive = (updatedDrive: VaccinationDrive): boolean => {
-    // Find the existing drive
-    const existingDrive = vaccinationDrives.find(drive => drive.id === updatedDrive.id);
-    
-    if (!existingDrive) {
-      toast.error('Vaccination drive not found');
-      return false;
-    }
-    
-    // Check if drive is already completed
-    if (existingDrive.status === 'completed') {
-      toast.error('Cannot edit a completed vaccination drive');
-      return false;
-    }
-    
-    // Convert date string to Date for validation
-    const driveDate = new Date(updatedDrive.date);
-    const today = new Date();
-    const minDate = addDays(today, 15); // 15 days from now
-    
-    // Check date requirement only if the date has changed
-    if (updatedDrive.date !== existingDrive.date && driveDate < minDate) {
-      toast.error('Vaccination drive must be scheduled at least 15 days in advance');
-      return false;
-    }
-    
-    // Check for overlapping drives only if date has changed
-    if (updatedDrive.date !== existingDrive.date) {
-      const sameDateDrives = vaccinationDrives.filter(drive => 
-        drive.date === updatedDrive.date && drive.id !== updatedDrive.id
-      );
-      
-      if (sameDateDrives.length > 0) {
-        toast.error('Another vaccination drive is already scheduled for this date');
-        return false;
-      }
-    }
-    
-    setVaccinationDrives(prev => 
-      prev.map(drive => drive.id === updatedDrive.id ? updatedDrive : drive)
-    );
-    
-    toast.success(`Vaccination drive "${updatedDrive.name}" updated successfully`);
-    return true;
+  const deleteStudent = (id: string) => {
+    setStudents((prev) => prev.filter((student) => student.id !== id));
+    toast.success('Student deleted successfully!');
   };
 
   const getStudentById = (id: string): Student | undefined => {
-    return students.find(student => student.id === id);
+    return students.find((student) => student.id === id);
+  };
+
+  const addVaccinationDrive = (drive: Omit<VaccinationDrive, 'id' | 'usedDoses' | 'status'>) => {
+    const newDrive: VaccinationDrive = {
+      id: Math.random().toString(36).substring(2, 15),
+      ...drive,
+      usedDoses: 0,
+      status: 'scheduled',
+    };
+    setVaccinationDrives((prev) => [...prev, newDrive]);
+    toast.success(`${drive.name} added successfully!`);
+  };
+  
+  const updateVaccinationDrive = (drive: VaccinationDrive): boolean => {
+    if (drive.usedDoses > drive.totalDoses) {
+      toast.error("Used doses cannot be more than total doses");
+      return false;
+    }
+    
+    setVaccinationDrives(prev =>
+      prev.map(d => (d.id === drive.id ? drive : d))
+    );
+    toast.success(`${drive.name} updated successfully!`);
+    return true;
+  };
+
+  const cancelVaccinationDrive = (id: string) => {
+    setVaccinationDrives(prev =>
+      prev.map(drive =>
+        drive.id === id ? { ...drive, status: 'cancelled' } : drive
+      )
+    );
+    toast.success('Vaccination drive cancelled successfully!');
+  };
+  
+  const completeVaccinationDrive = (id: string) => {
+    setVaccinationDrives(prev =>
+      prev.map(drive =>
+        drive.id === id ? { ...drive, status: 'completed' } : drive
+      )
+    );
+    toast.success('Vaccination drive completed successfully!');
   };
 
   const getDriveById = (id: string): VaccinationDrive | undefined => {
-    return vaccinationDrives.find(drive => drive.id === id);
+    return vaccinationDrives.find((drive) => drive.id === id);
   };
-
+  
+  const getDriveVaccinatedStudents = (driveId: string): Student[] => {
+    return students.filter(student =>
+      student.vaccinations.some(vaccination => vaccination.driveId === driveId)
+    );
+  };
+  
   const markStudentVaccinated = (studentId: string, driveId: string): boolean => {
     const student = students.find(s => s.id === studentId);
     const drive = vaccinationDrives.find(d => d.id === driveId);
     
     if (!student || !drive) {
-      toast.error('Student or vaccination drive not found');
-      return false;
-    }
-    
-    // Check if student's class is in target classes
-    if (!drive.targetClasses.includes(student.class)) {
-      toast.error(`This student is not in the target classes (${drive.targetClasses.join(', ')}) for this drive`);
+      toast.error("Student or vaccination drive not found");
       return false;
     }
     
     // Check if student is already vaccinated in this drive
-    if (student.vaccinations.some(v => v.driveId === driveId && v.status === 'completed')) {
-      toast.error('Student has already been vaccinated in this drive');
+    if (student.vaccinations.some(v => v.driveId === driveId)) {
+      toast.error(`${student.name} has already been vaccinated in this drive`);
       return false;
     }
     
-    // Check if drive has available doses
+    // Check if there are enough doses left
     if (drive.usedDoses >= drive.totalDoses) {
-      toast.error('No more doses available for this vaccination drive');
+      toast.error("No vaccine doses remaining for this drive");
       return false;
     }
     
-    // Update student vaccination record
-    const updatedVaccinations = [
-      ...student.vaccinations.filter(v => v.driveId !== driveId),
-      {
-        driveId,
-        vaccineName: drive.vaccineName,
-        date: drive.date,
-        status: 'completed'
-      }
-    ];
+    // Add vaccination record to student
+    setStudents(prev => 
+      prev.map(s => {
+        if (s.id === student.id) {
+          return {
+            ...s,
+            vaccinations: [
+              ...s.vaccinations,
+              {
+                driveId: drive.id,
+                vaccineName: drive.vaccineName,
+                date: new Date().toISOString().split('T')[0],
+                status: "completed" as const
+              }
+            ]
+          };
+        }
+        return s;
+      })
+    );
     
-    const updatedStudent = {
-      ...student,
-      vaccinations: updatedVaccinations
-    };
+    // Update usedDoses in vaccinationDrive
+    setVaccinationDrives(prev =>
+      prev.map(d => {
+        if (d.id === driveId) {
+          return {
+            ...d,
+            usedDoses: d.usedDoses + 1
+          };
+        }
+        return d;
+      })
+    );
     
-    // Update drive used doses
-    const updatedDrive = {
-      ...drive,
-      usedDoses: drive.usedDoses + 1
-    };
-    
-    setStudents(prev => prev.map(s => s.id === studentId ? updatedStudent : s));
-    setVaccinationDrives(prev => prev.map(d => d.id === driveId ? updatedDrive : d));
-    
-    toast.success(`${student.name} has been vaccinated with ${drive.vaccineName}`);
+    toast.success(`${student.name} marked as vaccinated!`);
     return true;
   };
 
-  const importStudents = (newStudents: Omit<Student, 'id' | 'vaccinations'>[]) => {
-    let lastId = Math.max(...students.map(s => parseInt(s.id)), 0);
-    
-    const studentsToAdd = newStudents.map(student => ({
-      ...student,
-      id: (++lastId).toString(),
-      vaccinations: []
-    }));
-    
-    setStudents(prev => [...prev, ...studentsToAdd]);
-    toast.success(`${studentsToAdd.length} students imported successfully`);
-  };
-
-  const getDriveVaccinatedStudents = (driveId: string): Student[] => {
-    return students.filter(student => 
-      student.vaccinations.some(v => v.driveId === driveId && v.status === 'completed')
-    );
-  };
-
-  const getUpcomingDrives = (): VaccinationDrive[] => {
-    const today = new Date();
-    const thirtyDaysLater = addDays(today, 30);
-    
-    return vaccinationDrives.filter(drive => {
-      const driveDate = new Date(drive.date);
-      return driveDate >= today && driveDate <= thirtyDaysLater && drive.status === 'scheduled';
-    });
-  };
-
-  const getVaccinationStats = () => {
-    const total = students.length;
-    // Count students with at least one completed vaccination
-    const vaccinated = students.filter(student => 
-      student.vaccinations.some(v => v.status === 'completed')
-    ).length;
-    
-    const percentage = total > 0 ? Math.round((vaccinated / total) * 100) : 0;
-    
-    return { total, vaccinated, percentage };
-  };
-
-  const value = {
+  const value: DataContextType = {
     students,
     vaccinationDrives,
     addStudent,
     updateStudent,
+    deleteStudent,
+    getStudentById,
     addVaccinationDrive,
     updateVaccinationDrive,
-    getStudentById,
+    cancelVaccinationDrive,
+    completeVaccinationDrive,
     getDriveById,
-    markStudentVaccinated,
-    importStudents,
     getDriveVaccinatedStudents,
-    getUpcomingDrives,
-    getVaccinationStats,
+    markStudentVaccinated,
   };
 
-  return (
-    <DataContext.Provider value={value}>
-      {children}
-    </DataContext.Provider>
-  );
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 };
 
-export const useData = (): DataContextType => {
+export const useData = () => {
   const context = useContext(DataContext);
   if (context === undefined) {
     throw new Error('useData must be used within a DataProvider');

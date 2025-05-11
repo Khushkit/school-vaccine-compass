@@ -29,6 +29,7 @@ import {
   Search,
   Check,
   User,
+  Plus,
 } from 'lucide-react';
 import { format, parseISO, isPast, addDays } from 'date-fns';
 import { toast } from 'sonner';
