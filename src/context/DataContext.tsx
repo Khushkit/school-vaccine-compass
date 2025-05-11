@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Student, VaccinationDrive } from '@/lib/mockData';
+import { Student, VaccinationDrive } from '@/lib/types';
 import { mockStudents, mockVaccinationDrives } from '@/lib/mockData';
 import { studentApi, vaccinationDriveApi } from '@/services/api';
 import { addDays, parseISO, isAfter, isPast } from 'date-fns';
@@ -11,11 +11,11 @@ interface DataContextType {
   vaccinationDrives: VaccinationDrive[];
   loading: boolean;
   error: string | null;
-  addStudent: (student: Omit<Student, 'id' | 'vaccinations'>) => Promise<void>;
+  addStudent: (student: Omit<Student, '_id' | 'id' | 'vaccinations'>) => Promise<void>;
   updateStudent: (student: Student) => Promise<boolean>;
   deleteStudent: (id: string) => Promise<void>;
   getStudentById: (id: string) => Student | undefined;
-  addVaccinationDrive: (drive: Omit<VaccinationDrive, 'id' | 'usedDoses' | 'status'>) => Promise<void>;
+  addVaccinationDrive: (drive: Omit<VaccinationDrive, '_id' | 'id' | 'usedDoses' | 'status'>) => Promise<void>;
   updateVaccinationDrive: (drive: VaccinationDrive) => Promise<boolean>;
   cancelVaccinationDrive: (id: string) => Promise<void>;
   completeVaccinationDrive: (id: string) => Promise<void>;
@@ -24,7 +24,7 @@ interface DataContextType {
   markStudentVaccinated: (studentId: string, driveId: string) => Promise<boolean>;
   getUpcomingDrives: () => Promise<VaccinationDrive[]>;
   getVaccinationStats: () => Promise<{ total: number; vaccinated: number; percentage: number }>;
-  importStudents: (studentsData: Omit<Student, 'id' | 'vaccinations'>[]) => Promise<void>;
+  importStudents: (studentsData: Omit<Student, '_id' | 'id' | 'vaccinations'>[]) => Promise<void>;
   refreshData: () => Promise<void>;
 }
 
@@ -55,8 +55,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       console.error('Error fetching data:', err);
       setError('Failed to fetch data. Please try again.');
       // Fallback to mock data if API fails
-      setStudents(mockStudents);
-      setVaccinationDrives(mockVaccinationDrives);
+      setStudents(mockStudents as unknown as Student[]);
+      setVaccinationDrives(mockVaccinationDrives as unknown as VaccinationDrive[]);
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     fetchData();
   }, [fetchData]);
 
-  const addStudent = async (student: Omit<Student, 'id' | 'vaccinations'>) => {
+  const addStudent = async (student: Omit<Student, '_id' | 'id' | 'vaccinations'>) => {
     try {
       const newStudent = await studentApi.create(student);
       setStudents(prev => [...prev, newStudent]);
@@ -101,10 +101,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const getStudentById = (id: string): Student | undefined => {
-    return students.find(student => student._id === id);
+    return students.find(student => student._id === id || student.id === id);
   };
 
-  const addVaccinationDrive = async (drive: Omit<VaccinationDrive, 'id' | 'usedDoses' | 'status'>) => {
+  const addVaccinationDrive = async (drive: Omit<VaccinationDrive, '_id' | 'id' | 'usedDoses' | 'status'>) => {
     try {
       const newDrive = await vaccinationDriveApi.create(drive);
       setVaccinationDrives(prev => [...prev, newDrive]);
@@ -150,7 +150,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const getDriveById = (id: string): VaccinationDrive | undefined => {
-    return vaccinationDrives.find(drive => drive._id === id);
+    return vaccinationDrives.find(drive => drive._id === id || drive.id === id);
   };
   
   const getDriveVaccinatedStudents = async (driveId: string): Promise<Student[]> => {
@@ -227,7 +227,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   // Function to import multiple students
-  const importStudents = async (studentsData: Omit<Student, 'id' | 'vaccinations'>[]) => {
+  const importStudents = async (studentsData: Omit<Student, '_id' | 'id' | 'vaccinations'>[]) => {
     try {
       const newStudents = await studentApi.importStudents(studentsData);
       setStudents(prev => [...prev, ...newStudents]);

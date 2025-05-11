@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useData } from '@/context/DataContext';
@@ -33,7 +32,7 @@ import {
 } from 'lucide-react';
 import { format, parseISO, isPast, addDays } from 'date-fns';
 import { toast } from 'sonner';
-import { VaccinationDrive } from '@/lib/mockData';
+import { VaccinationDrive, Student } from '@/lib/types';
 
 const DriveDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -47,7 +46,7 @@ const DriveDetails: React.FC = () => {
   } = useData();
   
   const [drive, setDrive] = useState<VaccinationDrive | undefined>(getDriveById(id || ''));
-  const [vaccinated, setVaccinated] = useState(getDriveVaccinatedStudents(id || ''));
+  const [vaccinated, setVaccinated] = useState<Student[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addStudentsDialogOpen, setAddStudentsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -87,7 +86,19 @@ const DriveDetails: React.FC = () => {
     }
     
     setDrive(fetchedDrive);
-    setVaccinated(getDriveVaccinatedStudents(id || ''));
+    
+    // Fetch vaccinated students
+    const fetchVaccinatedStudents = async () => {
+      try {
+        const vaccinatedStudents = await getDriveVaccinatedStudents(id || '');
+        setVaccinated(vaccinatedStudents);
+      } catch (err) {
+        console.error("Error fetching vaccinated students:", err);
+        setVaccinated([]);
+      }
+    };
+    
+    fetchVaccinatedStudents();
     
     // Initialize edit form with drive data
     setEditFormData({
@@ -120,7 +131,7 @@ const DriveDetails: React.FC = () => {
     return null; // Already handling navigation in useEffect
   }
 
-  const handleUpdateDrive = () => {
+  const handleUpdateDrive = async () => {
     if (!drive) return;
     
     // Check if the drive is already completed
@@ -144,7 +155,7 @@ const DriveDetails: React.FC = () => {
       targetClasses: editFormData.targetClasses,
     };
     
-    const success = updateVaccinationDrive(updatedDrive);
+    const success = await updateVaccinationDrive(updatedDrive);
     
     if (success) {
       setDrive(updatedDrive);
@@ -152,15 +163,16 @@ const DriveDetails: React.FC = () => {
     }
   };
   
-  const handleMarkVaccinated = (studentId: string) => {
+  const handleMarkVaccinated = async (studentId: string) => {
     if (!drive) return;
     
-    const success = markStudentVaccinated(studentId, drive.id);
+    const success = await markStudentVaccinated(studentId, drive._id);
     
     if (success) {
-      // Update local state
-      setDrive(getDriveById(drive.id));
-      setVaccinated(getDriveVaccinatedStudents(drive.id));
+      // Refresh data
+      setDrive(getDriveById(drive._id));
+      const refreshedVaccinatedStudents = await getDriveVaccinatedStudents(drive._id);
+      setVaccinated(refreshedVaccinatedStudents);
     }
   };
   
@@ -190,7 +202,7 @@ const DriveDetails: React.FC = () => {
     // Create CSV content
     const headers = ['Name', 'Class', 'Section', 'Roll Number', 'Vaccination Date', 'Vaccine'];
     const rows = vaccinated.map(student => {
-      const vaccination = student.vaccinations.find(v => v.driveId === drive.id);
+      const vaccination = student.vaccinations.find(v => v.driveId === drive._id);
       return [
         student.name,
         student.class,

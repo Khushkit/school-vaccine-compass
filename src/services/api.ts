@@ -1,7 +1,7 @@
 
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Student, VaccinationDrive } from '@/lib/mockData';
+import { Student, VaccinationDrive } from '@/lib/types';
 
 // Create axios instance
 const api = axios.create({
@@ -33,7 +33,7 @@ export const studentApi = {
     return response.data;
   },
   
-  create: async (student: Omit<Student, 'id' | 'vaccinations'>): Promise<Student> => {
+  create: async (student: Omit<Student, '_id' | 'id' | 'vaccinations'>): Promise<Student> => {
     const response = await api.post('/students', student);
     return response.data;
   },
@@ -47,7 +47,7 @@ export const studentApi = {
     await api.delete(`/students/${id}`);
   },
   
-  importStudents: async (students: Omit<Student, 'id' | 'vaccinations'>[]): Promise<Student[]> => {
+  importStudents: async (students: Omit<Student, '_id' | 'id' | 'vaccinations'>[]): Promise<Student[]> => {
     const response = await api.post('/students/import', students);
     return response.data;
   },
@@ -70,7 +70,7 @@ export const vaccinationDriveApi = {
     return response.data;
   },
   
-  create: async (drive: Omit<VaccinationDrive, 'id' | 'usedDoses' | 'status'>): Promise<VaccinationDrive> => {
+  create: async (drive: Omit<VaccinationDrive, '_id' | 'id' | 'usedDoses' | 'status'>): Promise<VaccinationDrive> => {
     const response = await api.post('/vaccination-drives', drive);
     return response.data;
   },

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useData } from '@/context/DataContext';
@@ -6,7 +5,7 @@ import { Calendar, Users, Loader } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
-import { VaccinationDrive } from '@/lib/mockData';
+import { VaccinationDrive } from '@/lib/types';
 
 const Dashboard: React.FC = () => {
   const { 
