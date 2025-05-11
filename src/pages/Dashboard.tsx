@@ -1,23 +1,55 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useData } from '@/context/DataContext';
-import { Calendar, Users } from 'lucide-react';
+import { Calendar, Users, Loader } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
+import { VaccinationDrive } from '@/lib/mockData';
 
 const Dashboard: React.FC = () => {
   const { 
-    students, 
-    vaccinationDrives, 
     getUpcomingDrives, 
-    getVaccinationStats 
+    getVaccinationStats,
+    loading: contextLoading
   } = useData();
   
   const navigate = useNavigate();
-  const stats = getVaccinationStats();
-  const upcomingDrives = getUpcomingDrives();
+  const [stats, setStats] = useState({ total: 0, vaccinated: 0, percentage: 0 });
+  const [upcomingDrives, setUpcomingDrives] = useState<VaccinationDrive[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [statsData, drivesData] = await Promise.all([
+          getVaccinationStats(),
+          getUpcomingDrives()
+        ]);
+        setStats(statsData);
+        setUpcomingDrives(drivesData);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (!contextLoading) {
+      fetchData();
+    }
+  }, [getUpcomingDrives, getVaccinationStats, contextLoading]);
+
+  if (loading || contextLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader className="h-8 w-8 animate-spin text-medical-600" />
+        <span className="ml-2">Loading dashboard data...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -123,9 +155,9 @@ const Dashboard: React.FC = () => {
             <div className="space-y-4">
               {upcomingDrives.map((drive) => (
                 <div 
-                  key={drive.id} 
+                  key={drive._id} 
                   className="p-4 border rounded-md bg-white flex items-center justify-between hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => navigate(`/vaccination-drives/${drive.id}`)}
+                  onClick={() => navigate(`/vaccination-drives/${drive._id}`)}
                 >
                   <div className="flex items-center">
                     <div className="bg-medical-100 p-3 rounded-full">

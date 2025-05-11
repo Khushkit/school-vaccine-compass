@@ -3,25 +3,29 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { toast } from 'sonner';
 import { Student, VaccinationDrive } from '@/lib/mockData';
 import { mockStudents, mockVaccinationDrives } from '@/lib/mockData';
+import { studentApi, vaccinationDriveApi } from '@/services/api';
 import { addDays, parseISO, isAfter, isPast } from 'date-fns';
 
 interface DataContextType {
   students: Student[];
   vaccinationDrives: VaccinationDrive[];
-  addStudent: (student: Omit<Student, 'id' | 'vaccinations'>) => void;
-  updateStudent: (student: Student) => boolean;
-  deleteStudent: (id: string) => void;
+  loading: boolean;
+  error: string | null;
+  addStudent: (student: Omit<Student, 'id' | 'vaccinations'>) => Promise<void>;
+  updateStudent: (student: Student) => Promise<boolean>;
+  deleteStudent: (id: string) => Promise<void>;
   getStudentById: (id: string) => Student | undefined;
-  addVaccinationDrive: (drive: Omit<VaccinationDrive, 'id' | 'usedDoses' | 'status'>) => void;
-  updateVaccinationDrive: (drive: VaccinationDrive) => boolean;
-  cancelVaccinationDrive: (id: string) => void;
-  completeVaccinationDrive: (id: string) => void;
+  addVaccinationDrive: (drive: Omit<VaccinationDrive, 'id' | 'usedDoses' | 'status'>) => Promise<void>;
+  updateVaccinationDrive: (drive: VaccinationDrive) => Promise<boolean>;
+  cancelVaccinationDrive: (id: string) => Promise<void>;
+  completeVaccinationDrive: (id: string) => Promise<void>;
   getDriveById: (id: string) => VaccinationDrive | undefined;
-  getDriveVaccinatedStudents: (driveId: string) => Student[];
-  markStudentVaccinated: (studentId: string, driveId: string) => boolean;
-  getUpcomingDrives: () => VaccinationDrive[];
-  getVaccinationStats: () => { total: number; vaccinated: number; percentage: number };
-  importStudents: (studentsData: Omit<Student, 'id' | 'vaccinations'>[]) => void;
+  getDriveVaccinatedStudents: (driveId: string) => Promise<Student[]>;
+  markStudentVaccinated: (studentId: string, driveId: string) => Promise<boolean>;
+  getUpcomingDrives: () => Promise<VaccinationDrive[]>;
+  getVaccinationStats: () => Promise<{ total: number; vaccinated: number; percentage: number }>;
+  importStudents: (studentsData: Omit<Student, 'id' | 'vaccinations'>[]) => Promise<void>;
+  refreshData: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -31,212 +35,219 @@ interface DataProviderProps {
 }
 
 export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
-  const [students, setStudents] = useState<Student[]>(() => {
-    const storedStudents = localStorage.getItem('students');
-    return storedStudents ? JSON.parse(storedStudents) : mockStudents;
-  });
-  const [vaccinationDrives, setVaccinationDrives] = useState<VaccinationDrive[]>(() => {
-    const storedDrives = localStorage.getItem('vaccinationDrives');
-    return storedDrives ? JSON.parse(storedDrives) : mockVaccinationDrives;
-  });
+  const [students, setStudents] = useState<Student[]>([]);
+  const [vaccinationDrives, setVaccinationDrives] = useState<VaccinationDrive[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // Function to update local storage
-  const updateLocalStorage = useCallback(() => {
-    localStorage.setItem('students', JSON.stringify(students));
-    localStorage.setItem('vaccinationDrives', JSON.stringify(vaccinationDrives));
-  }, [students, vaccinationDrives]);
+  // Function to fetch all data from API
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [studentsData, drivesData] = await Promise.all([
+        studentApi.getAll(),
+        vaccinationDriveApi.getAll()
+      ]);
+      setStudents(studentsData);
+      setVaccinationDrives(drivesData);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Failed to fetch data. Please try again.');
+      // Fallback to mock data if API fails
+      setStudents(mockStudents);
+      setVaccinationDrives(mockVaccinationDrives);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    updateLocalStorage();
-  }, [students, vaccinationDrives, updateLocalStorage]);
+    fetchData();
+  }, [fetchData]);
 
-  const addStudent = (student: Omit<Student, 'id' | 'vaccinations'>) => {
-    const newStudent: Student = {
-      id: Math.random().toString(36).substring(2, 15),
-      ...student,
-      vaccinations: [],
-    };
-    setStudents((prev) => [...prev, newStudent]);
-    toast.success(`${student.name} added successfully!`);
+  const addStudent = async (student: Omit<Student, 'id' | 'vaccinations'>) => {
+    try {
+      const newStudent = await studentApi.create(student);
+      setStudents(prev => [...prev, newStudent]);
+      toast.success(`${student.name} added successfully!`);
+    } catch (err) {
+      console.error('Error adding student:', err);
+      throw err;
+    }
   };
   
-  const updateStudent = (student: Student): boolean => {
-    setStudents(prev =>
-      prev.map(s => (s.id === student.id ? student : s))
-    );
-    toast.success(`${student.name} updated successfully!`);
-    return true;
+  const updateStudent = async (student: Student): Promise<boolean> => {
+    try {
+      const updatedStudent = await studentApi.update(student);
+      setStudents(prev => prev.map(s => (s._id === updatedStudent._id ? updatedStudent : s)));
+      toast.success(`${student.name} updated successfully!`);
+      return true;
+    } catch (err) {
+      console.error('Error updating student:', err);
+      return false;
+    }
   };
 
-  const deleteStudent = (id: string) => {
-    setStudents((prev) => prev.filter((student) => student.id !== id));
-    toast.success('Student deleted successfully!');
+  const deleteStudent = async (id: string) => {
+    try {
+      await studentApi.delete(id);
+      setStudents(prev => prev.filter(student => student._id !== id));
+      toast.success('Student deleted successfully!');
+    } catch (err) {
+      console.error('Error deleting student:', err);
+      throw err;
+    }
   };
 
   const getStudentById = (id: string): Student | undefined => {
-    return students.find((student) => student.id === id);
+    return students.find(student => student._id === id);
   };
 
-  const addVaccinationDrive = (drive: Omit<VaccinationDrive, 'id' | 'usedDoses' | 'status'>) => {
-    const newDrive: VaccinationDrive = {
-      id: Math.random().toString(36).substring(2, 15),
-      ...drive,
-      usedDoses: 0,
-      status: 'scheduled',
-    };
-    setVaccinationDrives((prev) => [...prev, newDrive]);
-    toast.success(`${drive.name} added successfully!`);
+  const addVaccinationDrive = async (drive: Omit<VaccinationDrive, 'id' | 'usedDoses' | 'status'>) => {
+    try {
+      const newDrive = await vaccinationDriveApi.create(drive);
+      setVaccinationDrives(prev => [...prev, newDrive]);
+      toast.success(`${drive.name} added successfully!`);
+    } catch (err) {
+      console.error('Error adding vaccination drive:', err);
+      throw err;
+    }
   };
   
-  const updateVaccinationDrive = (drive: VaccinationDrive): boolean => {
-    if (drive.usedDoses > drive.totalDoses) {
-      toast.error("Used doses cannot be more than total doses");
+  const updateVaccinationDrive = async (drive: VaccinationDrive): Promise<boolean> => {
+    try {
+      const updatedDrive = await vaccinationDriveApi.update(drive);
+      setVaccinationDrives(prev => prev.map(d => (d._id === updatedDrive._id ? updatedDrive : d)));
+      toast.success(`${drive.name} updated successfully!`);
+      return true;
+    } catch (err) {
+      console.error('Error updating vaccination drive:', err);
       return false;
     }
-    
-    setVaccinationDrives(prev =>
-      prev.map(d => (d.id === drive.id ? drive : d))
-    );
-    toast.success(`${drive.name} updated successfully!`);
-    return true;
   };
 
-  const cancelVaccinationDrive = (id: string) => {
-    setVaccinationDrives(prev =>
-      prev.map(drive =>
-        drive.id === id ? { ...drive, status: 'cancelled' } : drive
-      )
-    );
-    toast.success('Vaccination drive cancelled successfully!');
+  const cancelVaccinationDrive = async (id: string) => {
+    try {
+      const updatedDrive = await vaccinationDriveApi.cancel(id);
+      setVaccinationDrives(prev => prev.map(drive => (drive._id === id ? updatedDrive : drive)));
+      toast.success('Vaccination drive cancelled successfully!');
+    } catch (err) {
+      console.error('Error cancelling vaccination drive:', err);
+      throw err;
+    }
   };
   
-  const completeVaccinationDrive = (id: string) => {
-    setVaccinationDrives(prev =>
-      prev.map(drive =>
-        drive.id === id ? { ...drive, status: 'completed' } : drive
-      )
-    );
-    toast.success('Vaccination drive completed successfully!');
+  const completeVaccinationDrive = async (id: string) => {
+    try {
+      const updatedDrive = await vaccinationDriveApi.complete(id);
+      setVaccinationDrives(prev => prev.map(drive => (drive._id === id ? updatedDrive : drive)));
+      toast.success('Vaccination drive completed successfully!');
+    } catch (err) {
+      console.error('Error completing vaccination drive:', err);
+      throw err;
+    }
   };
 
   const getDriveById = (id: string): VaccinationDrive | undefined => {
-    return vaccinationDrives.find((drive) => drive.id === id);
+    return vaccinationDrives.find(drive => drive._id === id);
   };
   
-  const getDriveVaccinatedStudents = (driveId: string): Student[] => {
-    return students.filter(student =>
-      student.vaccinations.some(vaccination => vaccination.driveId === driveId)
-    );
+  const getDriveVaccinatedStudents = async (driveId: string): Promise<Student[]> => {
+    try {
+      return await vaccinationDriveApi.getVaccinatedStudents(driveId);
+    } catch (err) {
+      console.error('Error getting vaccinated students:', err);
+      return students.filter(student => student.vaccinations.some(v => v.driveId === driveId));
+    }
   };
   
-  const markStudentVaccinated = (studentId: string, driveId: string): boolean => {
-    const student = students.find(s => s.id === studentId);
-    const drive = vaccinationDrives.find(d => d.id === driveId);
-    
-    if (!student || !drive) {
-      toast.error("Student or vaccination drive not found");
+  const markStudentVaccinated = async (studentId: string, driveId: string): Promise<boolean> => {
+    try {
+      const result = await vaccinationDriveApi.markStudentVaccinated(driveId, studentId);
+      
+      // Update local state with new data
+      setStudents(prev => prev.map(s => (s._id === result.student._id ? result.student : s)));
+      setVaccinationDrives(prev => prev.map(d => (d._id === result.drive._id ? result.drive : d)));
+      
+      toast.success(`Student marked as vaccinated!`);
+      return true;
+    } catch (err) {
+      console.error('Error marking student as vaccinated:', err);
       return false;
     }
-    
-    // Check if student is already vaccinated in this drive
-    if (student.vaccinations.some(v => v.driveId === driveId)) {
-      toast.error(`${student.name} has already been vaccinated in this drive`);
-      return false;
-    }
-    
-    // Check if there are enough doses left
-    if (drive.usedDoses >= drive.totalDoses) {
-      toast.error("No vaccine doses remaining for this drive");
-      return false;
-    }
-    
-    // Add vaccination record to student
-    setStudents(prev => 
-      prev.map(s => {
-        if (s.id === student.id) {
-          return {
-            ...s,
-            vaccinations: [
-              ...s.vaccinations,
-              {
-                driveId: drive.id,
-                vaccineName: drive.vaccineName,
-                date: new Date().toISOString().split('T')[0],
-                status: "completed" as const
-              }
-            ]
-          };
-        }
-        return s;
-      })
-    );
-    
-    // Update usedDoses in vaccinationDrive
-    setVaccinationDrives(prev =>
-      prev.map(d => {
-        if (d.id === driveId) {
-          return {
-            ...d,
-            usedDoses: d.usedDoses + 1
-          };
-        }
-        return d;
-      })
-    );
-    
-    toast.success(`${student.name} marked as vaccinated!`);
-    return true;
   };
 
   // Function to get upcoming vaccination drives (within the next 30 days)
-  const getUpcomingDrives = (): VaccinationDrive[] => {
-    const today = new Date();
-    const thirtyDaysFromNow = addDays(today, 30);
-    
-    return vaccinationDrives
-      .filter(drive => {
-        const driveDate = parseISO(drive.date);
-        return (
-          drive.status === 'scheduled' &&
-          !isPast(driveDate) && 
-          isAfter(driveDate, today) && 
-          isAfter(thirtyDaysFromNow, driveDate)
-        );
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const getUpcomingDrives = async (): Promise<VaccinationDrive[]> => {
+    try {
+      return await vaccinationDriveApi.getUpcoming();
+    } catch (err) {
+      console.error('Error getting upcoming drives:', err);
+      
+      // Fallback to client-side filtering if API fails
+      const today = new Date();
+      const thirtyDaysFromNow = addDays(today, 30);
+      
+      return vaccinationDrives
+        .filter(drive => {
+          const driveDate = parseISO(drive.date);
+          return (
+            drive.status === 'scheduled' &&
+            !isPast(driveDate) && 
+            isAfter(driveDate, today) && 
+            isAfter(thirtyDaysFromNow, driveDate)
+          );
+        })
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }
   };
 
   // Function to get vaccination statistics
-  const getVaccinationStats = () => {
-    const total = students.length;
-    const vaccinated = students.filter(student => 
-      student.vaccinations.some(v => v.status === 'completed')
-    ).length;
-    
-    const percentage = total > 0 ? Math.round((vaccinated / total) * 100) : 0;
-    
-    return {
-      total,
-      vaccinated,
-      percentage
-    };
+  const getVaccinationStats = async () => {
+    try {
+      return await vaccinationDriveApi.getStats();
+    } catch (err) {
+      console.error('Error getting vaccination stats:', err);
+      
+      // Fallback to client-side calculation if API fails
+      const total = students.length;
+      const vaccinated = students.filter(student => 
+        student.vaccinations.some(v => v.status === 'completed')
+      ).length;
+      
+      const percentage = total > 0 ? Math.round((vaccinated / total) * 100) : 0;
+      
+      return {
+        total,
+        vaccinated,
+        percentage
+      };
+    }
   };
 
   // Function to import multiple students
-  const importStudents = (studentsData: Omit<Student, 'id' | 'vaccinations'>[]) => {
-    const newStudents = studentsData.map(student => ({
-      id: Math.random().toString(36).substring(2, 15),
-      ...student,
-      vaccinations: [],
-    }));
-    
-    setStudents(prev => [...prev, ...newStudents]);
-    toast.success(`${newStudents.length} students imported successfully!`);
+  const importStudents = async (studentsData: Omit<Student, 'id' | 'vaccinations'>[]) => {
+    try {
+      const newStudents = await studentApi.importStudents(studentsData);
+      setStudents(prev => [...prev, ...newStudents]);
+      toast.success(`${newStudents.length} students imported successfully!`);
+    } catch (err) {
+      console.error('Error importing students:', err);
+      throw err;
+    }
+  };
+
+  // Function to refresh all data
+  const refreshData = async () => {
+    await fetchData();
   };
 
   const value: DataContextType = {
     students,
     vaccinationDrives,
+    loading,
+    error,
     addStudent,
     updateStudent,
     deleteStudent,
@@ -251,9 +262,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     getUpcomingDrives,
     getVaccinationStats,
     importStudents,
+    refreshData,
   };
 
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+  return (
+    <DataContext.Provider value={value}>
+      {children}
+    </DataContext.Provider>
+  );
 };
 
 export const useData = () => {
