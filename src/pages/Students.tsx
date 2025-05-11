@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/context/DataContext';
 import { Student as BaseStudent } from '@/lib/mockData';
-import { convertToUIStudent } from '@/lib/types';
+import { Student, convertToUIStudent } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -125,7 +124,8 @@ const Students: React.FC = () => {
         return;
       }
       
-      const students: Omit<Student, 'id' | 'vaccinations'>[] = [];
+      // Fix type definition to match what importStudents expects
+      const students: Omit<Student, '_id' | 'id' | 'vaccinations'>[] = [];
       
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',');
@@ -140,7 +140,7 @@ const Students: React.FC = () => {
           }
         });
         
-        students.push(student as Omit<Student, 'id' | 'vaccinations'>);
+        students.push(student as Omit<Student, '_id' | 'id' | 'vaccinations'>);
       }
       
       if (students.length === 0) {

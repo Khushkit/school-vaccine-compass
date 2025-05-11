@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Student, VaccinationDrive } from '@/lib/types';
@@ -226,7 +225,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
-  // Function to import multiple students
+  // Updated importStudents method with the correct parameter type
   const importStudents = async (studentsData: Omit<Student, '_id' | 'id' | 'vaccinations'>[]) => {
     try {
       const newStudents = await studentApi.importStudents(studentsData);

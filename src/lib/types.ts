@@ -26,6 +26,9 @@ export interface VaccinationDrive extends Omit<BaseVaccinationDrive, 'id'>, Mong
   // _id is already included through MongoDBDocument
 }
 
+// Update the base student type interface from mockData to include the cancelled status
+export type StudentVaccinationStatus = 'scheduled' | 'completed' | 'cancelled';
+
 // Add helper functions to convert between types
 export const convertToUIStudent = (student: Student): BaseStudent => {
   return {
@@ -33,7 +36,7 @@ export const convertToUIStudent = (student: Student): BaseStudent => {
     id: student._id || student.id || '',
     vaccinations: student.vaccinations.map(v => ({
       ...v,
-      status: v.status === 'cancelled' ? 'completed' : v.status, // Map cancelled to completed for UI compatibility
+      // No need to map cancelled to completed since we're updating the base type
     })),
   };
 };
