@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/context/DataContext';
-import { Student as BaseStudent } from '@/lib/mockData';
-import { Student, convertToUIStudent } from '@/lib/types';
+import { BaseStudent, Student, convertToUIStudent } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 

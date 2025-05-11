@@ -12,7 +12,7 @@ export interface Student {
     driveId: string;
     vaccineName: string;
     date: string;
-    status: 'completed' | 'scheduled';
+    status: 'completed' | 'scheduled' | 'cancelled'; // Updated to include 'cancelled'
   }[];
 }
 

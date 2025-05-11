@@ -1,7 +1,24 @@
-
 // This file extends the existing mockData.ts types with MongoDB specific fields
 
-import { Student as BaseStudent, VaccinationDrive as BaseVaccinationDrive } from './mockData';
+import { VaccinationDrive as BaseVaccinationDrive } from './mockData';
+
+// First, let's modify the import to use our new StudentVaccinationStatus type
+import { Student as MockStudent } from './mockData';
+
+// Define the StudentVaccinationStatus type that includes all possible statuses
+export type StudentVaccinationStatus = 'scheduled' | 'completed' | 'cancelled';
+
+// Since the base Student type in mockData doesn't support 'cancelled' status,
+// we need to create an extended base student type that does
+export interface BaseStudent extends Omit<MockStudent, 'vaccinations'> {
+  id: string;
+  vaccinations: {
+    driveId: string;
+    vaccineName: string;
+    date: string;
+    status: StudentVaccinationStatus;
+  }[];
+}
 
 // MongoDB related types
 export interface MongoDBDocument {
@@ -18,16 +35,13 @@ export interface Student extends Omit<BaseStudent, 'id'>, MongoDBDocument {
     driveId: string;
     vaccineName: string;
     date: string;
-    status: 'scheduled' | 'completed' | 'cancelled';
+    status: StudentVaccinationStatus;
   }[];
 }
 
 export interface VaccinationDrive extends Omit<BaseVaccinationDrive, 'id'>, MongoDBDocument {
   // _id is already included through MongoDBDocument
 }
-
-// Update the base student type interface from mockData to include the cancelled status
-export type StudentVaccinationStatus = 'scheduled' | 'completed' | 'cancelled';
 
 // Add helper functions to convert between types
 export const convertToUIStudent = (student: Student): BaseStudent => {
@@ -36,7 +50,7 @@ export const convertToUIStudent = (student: Student): BaseStudent => {
     id: student._id || student.id || '',
     vaccinations: student.vaccinations.map(v => ({
       ...v,
-      // No need to map cancelled to completed since we're updating the base type
+      // Keep the status as is since our BaseStudent type now supports 'cancelled'
     })),
   };
 };
