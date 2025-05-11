@@ -1,7 +1,9 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Student, VaccinationDrive, Vaccination } from '@/lib/mockData';
+import { Student, VaccinationDrive } from '@/lib/mockData';
 import { mockStudents, mockVaccinationDrives } from '@/lib/mockData';
+import { addDays, parseISO, isAfter, isPast } from 'date-fns';
 
 interface DataContextType {
   students: Student[];
@@ -17,6 +19,9 @@ interface DataContextType {
   getDriveById: (id: string) => VaccinationDrive | undefined;
   getDriveVaccinatedStudents: (driveId: string) => Student[];
   markStudentVaccinated: (studentId: string, driveId: string) => boolean;
+  getUpcomingDrives: () => VaccinationDrive[];
+  getVaccinationStats: () => { total: number; vaccinated: number; percentage: number };
+  importStudents: (studentsData: Omit<Student, 'id' | 'vaccinations'>[]) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -183,6 +188,52 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     return true;
   };
 
+  // Function to get upcoming vaccination drives (within the next 30 days)
+  const getUpcomingDrives = (): VaccinationDrive[] => {
+    const today = new Date();
+    const thirtyDaysFromNow = addDays(today, 30);
+    
+    return vaccinationDrives
+      .filter(drive => {
+        const driveDate = parseISO(drive.date);
+        return (
+          drive.status === 'scheduled' &&
+          !isPast(driveDate) && 
+          isAfter(driveDate, today) && 
+          isAfter(thirtyDaysFromNow, driveDate)
+        );
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  };
+
+  // Function to get vaccination statistics
+  const getVaccinationStats = () => {
+    const total = students.length;
+    const vaccinated = students.filter(student => 
+      student.vaccinations.some(v => v.status === 'completed')
+    ).length;
+    
+    const percentage = total > 0 ? Math.round((vaccinated / total) * 100) : 0;
+    
+    return {
+      total,
+      vaccinated,
+      percentage
+    };
+  };
+
+  // Function to import multiple students
+  const importStudents = (studentsData: Omit<Student, 'id' | 'vaccinations'>[]) => {
+    const newStudents = studentsData.map(student => ({
+      id: Math.random().toString(36).substring(2, 15),
+      ...student,
+      vaccinations: [],
+    }));
+    
+    setStudents(prev => [...prev, ...newStudents]);
+    toast.success(`${newStudents.length} students imported successfully!`);
+  };
+
   const value: DataContextType = {
     students,
     vaccinationDrives,
@@ -197,6 +248,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     getDriveById,
     getDriveVaccinatedStudents,
     markStudentVaccinated,
+    getUpcomingDrives,
+    getVaccinationStats,
+    importStudents,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/context/DataContext';
@@ -102,20 +101,17 @@ const VaccinationDrives: React.FC = () => {
       return;
     }
     
-    const success = addVaccinationDrive(newDrive);
-    
-    if (success) {
-      setAddDriveDialogOpen(false);
+    addVaccinationDrive(newDrive);
+    setAddDriveDialogOpen(false);
       
-      // Reset form
-      setNewDrive({
-        name: '',
-        date: '',
-        vaccineName: '',
-        totalDoses: 0,
-        targetClasses: [],
-      });
-    }
+    // Reset form
+    setNewDrive({
+      name: '',
+      date: '',
+      vaccineName: '',
+      totalDoses: 0,
+      targetClasses: [],
+    });
   };
   
   const handleClassSelectionChange = (value: string) => {
