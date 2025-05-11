@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/context/DataContext';
 import { Button } from '@/components/ui/button';
@@ -27,7 +28,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Search, Plus, Check, X, Calendar, Clock } from 'lucide-react';
 import { format, parseISO, addDays, isAfter, isPast } from 'date-fns';
-import { VaccinationDrive } from '@/lib/mockData';
+import { VaccinationDrive as BaseVaccinationDrive } from '@/lib/mockData';
+import { convertToUIVaccinationDrive } from '@/lib/types';
 import { toast } from 'sonner';
 
 const VaccinationDrives: React.FC = () => {
@@ -36,7 +38,7 @@ const VaccinationDrives: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [addDriveDialogOpen, setAddDriveDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [filteredDrives, setFilteredDrives] = useState<VaccinationDrive[]>(vaccinationDrives);
+  const [filteredDrives, setFilteredDrives] = useState<BaseVaccinationDrive[]>([]);
 
   // New drive form state
   const [newDrive, setNewDrive] = useState({
@@ -54,8 +56,11 @@ const VaccinationDrives: React.FC = () => {
   const minDate = format(addDays(new Date(), 15), 'yyyy-MM-dd');
 
   // Effect to filter drives when search term or drives array changes
-  React.useEffect(() => {
-    let results = vaccinationDrives;
+  useEffect(() => {
+    // Convert API drives to UI format
+    const uiDrives = vaccinationDrives.map(convertToUIVaccinationDrive);
+    
+    let results = uiDrives;
     
     // Apply text search filter
     if (searchTerm) {

@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/context/DataContext';
-import { Student } from '@/lib/mockData';
+import { Student as BaseStudent } from '@/lib/mockData';
+import { convertToUIStudent } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -39,7 +40,7 @@ const Students: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [filteredStudents, setFilteredStudents] = useState<Student[]>(students);
+  const [filteredStudents, setFilteredStudents] = useState<BaseStudent[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   
   // New student form state
@@ -56,8 +57,11 @@ const Students: React.FC = () => {
   const [csvText, setCsvText] = useState('');
   
   // Effect to filter students when search term or students array changes
-  React.useEffect(() => {
-    let results = students;
+  useEffect(() => {
+    // Convert API students to UI format
+    const uiStudents = students.map(convertToUIStudent);
+    
+    let results = uiStudents;
     
     // Apply text search filter
     if (searchTerm) {

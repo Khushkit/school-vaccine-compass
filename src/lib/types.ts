@@ -25,3 +25,22 @@ export interface Student extends Omit<BaseStudent, 'id'>, MongoDBDocument {
 export interface VaccinationDrive extends Omit<BaseVaccinationDrive, 'id'>, MongoDBDocument {
   // _id is already included through MongoDBDocument
 }
+
+// Add helper functions to convert between types
+export const convertToUIStudent = (student: Student): BaseStudent => {
+  return {
+    ...student,
+    id: student._id || student.id || '',
+    vaccinations: student.vaccinations.map(v => ({
+      ...v,
+      status: v.status === 'cancelled' ? 'completed' : v.status, // Map cancelled to completed for UI compatibility
+    })),
+  };
+};
+
+export const convertToUIVaccinationDrive = (drive: VaccinationDrive): BaseVaccinationDrive => {
+  return {
+    ...drive,
+    id: drive._id || drive.id || '',
+  };
+};
